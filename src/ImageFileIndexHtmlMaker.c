@@ -11,12 +11,12 @@
 
 int ExecuteSpecifiedArgument( HWND hWnd, char const *pszArgument );
 int AfterDragAndDrop( HWND hWnd, HDROP hDrop );
-int DragAndFileList( const char *pszFullPathShort, const char *pszOutputDirectory, const char *pszWriteMode );
-int DragAndUrlFileList( const char *pszFullPathShort, const char *pszOutputDirectory, const char *pszWriteMode );
-int DragAndUrlIndexHtml( const char *pszFullPathShort, const char *pszOutputDirectory );
+int DragAndFileList( const char *pszFullPathShort );
+int DragAndUrlFileList( const char *pszFullPathShort );
+int DragAndUrlIndexHtml( const char *pszFullPathShort );
 int GetParentDirectoryFromFileFullPath( const char *pszFileFullPath, char *pszParentDirectory );
 int IsSameParentDirectoryFileList( char **pszFileFullPath, int iFileCount, char *pszParentDirectory );
-
+void DeleteExistingOutputFiles( const char *pszOutputDirectory );
 
 int GetParentDirectoryFromFileFullPath( const char *pszFileFullPath, char *pszParentDirectory )
 {
@@ -25,7 +25,6 @@ int GetParentDirectoryFromFileFullPath( const char *pszFileFullPath, char *pszPa
 	char	*pszFileName					 = NULL;
 	DWORD	dwLength						 = 0;
 	DWORD	dwAttributes					 = 0;
-	size_t	uiLength						 = 0;
 
 	if( pszFileFullPath == NULL || pszParentDirectory == NULL ){
 		return 1;
@@ -54,11 +53,6 @@ int GetParentDirectoryFromFileFullPath( const char *pszFileFullPath, char *pszPa
 		return 1;
 	}
 	*pszFileName = '\0';
-
-	uiLength = strlen( szLongFullPath );
-	while( 3 < uiLength && (szLongFullPath[uiLength-1] == '\\' || szLongFullPath[uiLength-1] == '/') ){
-		szLongFullPath[--uiLength] = '\0';
-	}
 	strcpy( pszParentDirectory, szLongFullPath );
 	return 0;
 }
@@ -83,9 +77,27 @@ int IsSameParentDirectoryFileList( char **pszFileFullPath, int iFileCount, char 
 	return 1;
 }
 
+void DeleteExistingOutputFiles( const char *pszOutputDirectory )
+{
+	static const char *pszOutputFileName[] = {
+		"FileList.txt",
+		"FileList_outer_frame.txt",
+		"FileList_caption_frame.txt",
+		"index.html.txt",
+		"index_outer_frame.html",
+		"index_caption_frame.html"
+	};
+	char	szOutputFile[_MAX_PATH+1]	 = { 0, };
+	int		i						 = 0;
+
+	for( i = 0; i < (int)(sizeof(pszOutputFileName) / sizeof(pszOutputFileName[0])); i++ ){
+		sprintf( szOutputFile, "%s\\%s", pszOutputDirectory, pszOutputFileName[i] );
+		DeleteFileA( szOutputFile );
+	}
+}
+
 //////////////////////////////////////////////////////////////////////
 //
-	char	szOutputDirectory[((_MAX_PATH)+1)]				 = { 0, };
 // 引数を指定して実行した場合
 //   又は，アイコンにファイルをドラッグした場合
 //
@@ -94,6 +106,7 @@ int ExecuteSpecifiedArgument( HWND hWnd, char const *pszArgument )
 {
 	char	**pszFileFullPathShort								 = NULL;
 	int		iFileCount											 = 0;
+	char	szOutputDirectory[_MAX_PATH+1]					 = { 0, };
 
 		//////////////////////////////////////////////////////////////
 		//
@@ -165,23 +178,18 @@ int ExecuteSpecifiedArgument( HWND hWnd, char const *pszArgument )
 	//
 	// 部分文字列を取得する。
 	//
-//int DivideFullString2PartStringBasedOnDelimiterCharacter( char const		*pszOriginalString, 
-//														  int const			iOriginalDelimiterCharacter, 
-//														  char 				**pszDividedStringArray, 
-//														  int const			iDividedStringArrayCount, 
+//int DivideFullString2PartStringBasedOnDelimiterCharacter( char const		*pszOriginalString,
+//														  int const			iOriginalDelimiterCharacter,
+//														  char 				**pszDividedStringArray,
+//														  int const			iDividedStringArrayCount,
 //														  int const			iDividedStringArrayLength )
 
 	//////////////////////////////////////////////////////////////////
 	//
-		if( !IsSameParentDirectoryFileList( pszFileFullPathShort, iFileCount, szOutputDirectory ) ){
-			DeleteCharArray2D( pszFileFullPathShort, iFileCount );
-			DeleteCharArray2D( pszFileFullPathLong, iFileCount );
-			return -5;
-		}
-				DragAndUrlFileList( pszFileFullPathShort[i], szOutputDirectory, (i == 0) ? "w" : "a" );
-				DragAndFileList( pszFileFullPathShort[i], szOutputDirectory, (i == 0) ? "w" : "a" );
+	// 部分文字列を取得する。
+	//
 
-	iReturn = DivideFullString2PartStringBasedOnDelimiterCharacter( pszArgument, 
+	iReturn = DivideFullString2PartStringBasedOnDelimiterCharacter( pszArgument,
 												   0x20,
 												   pszFileFullPathShort,
 												   iFileCount,
@@ -196,6 +204,16 @@ int ExecuteSpecifiedArgument( HWND hWnd, char const *pszArgument )
 #endif
 
 	if( iReturn == 0 ){
+		if( !IsSameParentDirectoryFileList( pszFileFullPathShort, iFileCount, szOutputDirectory ) ){
+			MessageBox( hWnd,
+						"Files from different folders, or a non-file item, are included.\nPlease specify files from one folder only.",
+						GetPszApplicationName(),
+						MB_OK | MB_ICONERROR );
+			DeleteCharArray2D( pszFileFullPathShort, iFileCount );
+			DeleteCharArray2D( pszFileFullPathLong, iFileCount );
+			return -5;
+		}
+		DeleteExistingOutputFiles( szOutputDirectory );
 		iReturn = IDNO;
 
 		if( iReturn == IDCANCEL ){
@@ -246,7 +264,28 @@ int ExecuteSpecifiedArgument( HWND hWnd, char const *pszArgument )
 
 //////////////////////////////////////////////////////////////////////
 //
-	char		**pszDroppedFileFullPath								 = NULL;
+// ファイルをドラッグした場合
+//
+
+int AfterDragAndDrop( HWND hWnd, HDROP hDrop )
+{
+#define DRAGANDDROP_FILE_COUNT_MAX 3000
+#define MESSAGEBOX_MESSAGE_MAX 1024
+	int			i														 = 0;
+	UINT		uiFileCount												 = 0;
+	char		szFullPathShort[_MAX_PATH+1]							 = { 0, };
+	int			iReturn													 = 0;
+	char		szMessage[MESSAGEBOX_MESSAGE_MAX+1]						 = { 0, };
+
+	char		szFileName[((_MAX_PATH)+1)]								 = { 0, };
+	char		szDesktopFullPath[((_MAX_PATH)+1)]						 = { 0, };
+
+	FILE		*fpInputFile											 = NULL;
+	FILE		*fpOutputFile											 = NULL;
+	char		szInputFile[((_MAX_PATH)+1)]							 = { 0, };
+	char		szOutputFile[((_MAX_PATH)+1)]							 = { 0, };
+
+	char		**pszDroppedFileFullPath = NULL;
 
 	uiFileCount = DragQueryFile( hDrop, 0xFFFFFFFF, NULL, 0 );
 	if( uiFileCount < 1 || DRAGANDDROP_FILE_COUNT_MAX < uiFileCount ){
@@ -278,28 +317,7 @@ int ExecuteSpecifiedArgument( HWND hWnd, char const *pszArgument )
 		return 1;
 	}
 	DeleteCharArray2D( pszDroppedFileFullPath, uiFileCount );
-		DragFinish( hDrop );
-//
-
-int AfterDragAndDrop( HWND hWnd, HDROP hDrop )
-{
-#define DRAGANDDROP_FILE_COUNT_MAX 3000
-#define MESSAGEBOX_MESSAGE_MAX 1024
-	int			i														 = 0;
-	UINT		uiFileCount												 = 0;
-	char		szFullPathShort[_MAX_PATH+1]							 = { 0, };
-	int			iReturn													 = 0;
-	char		szMessage[MESSAGEBOX_MESSAGE_MAX+1]						 = { 0, };
-
-	char		szFileName[((_MAX_PATH)+1)]								 = { 0, };
-	char		szDesktopFullPath[((_MAX_PATH)+1)]						 = { 0, };
-
-	FILE		*fpInputFile											 = NULL;
-	FILE		*fpOutputFile											 = NULL;
-	char		szInputFile[((_MAX_PATH)+1)]							 = { 0, };
-	char		szOutputFile[((_MAX_PATH)+1)]							 = { 0, };
-
-	GetDesktopFullPath( szDesktopFullPath, ((_MAX_PATH)+1) );
+	DeleteExistingOutputFiles( szDesktopFullPath );
 	sprintf( szOutputFile, "%s\\style_index.css", szDesktopFullPath );
 
 printf( "[imagefileindexhtmlmaker.c]の[199行目]\n" );
@@ -368,28 +386,22 @@ printf( "szOutputFile = [%s]\n", szOutputFile );
 
 printf( "[imagefileindexhtmlmaker.c]の[261行目]\n" );
 		/*
-			DragAndUrlFileList( szFullPathShort, szDesktopFullPath, "w" );
-			DragAndFileList( szFullPathShort, szDesktopFullPath, "w" );
-
-				DragAndUrlFileList( szFullPathShort, szDesktopFullPath, (i == 0) ? "w" : "a" );
-				DragAndFileList( szFullPathShort, szDesktopFullPath, (i == 0) ? "w" : "a" );
-	DragAndUrlIndexHtml( szFullPathShort, szDesktopFullPath );
-int DragAndFileList( const char *pszFullPathShort, const char *pszOutputDirectory, const char *pszWriteMode )
+		 * ドラッグアンドドロップされたファイルの数毎の処理
 		 */
-	strcpy( szDesktopFullPath, pszOutputDirectory );
-	fp = fopen( szFileName, pszWriteMode );
-	fpOutputFile2 = fopen( szOutputFile2, pszWriteMode );
-	fpOutputFile3 = fopen( szOutputFile3, pszWriteMode );
-int DragAndUrlFileList( const char *pszFullPathShort, const char *pszOutputDirectory, const char *pszWriteMode )
-	strcpy( szDesktopFullPath, pszOutputDirectory );
-	fp = fopen( szFileName, pszWriteMode );
-int DragAndUrlIndexHtml( const char *pszFullPathShort, const char *pszOutputDirectory )
-	strcpy( szDesktopFullPath, pszOutputDirectory );
 
-	fpOutputFile = fopen( szOutputFile, "w" );
+	if( uiFileCount == 1 ){
+/*
+		iReturn = MessageBox( hWnd,
+							  "\"file://\"を付加してURLにしますか",
+							  GetPszApplicationName(),
+							  MB_YESNOCANCEL | MB_ICONQUESTION | MB_DEFBUTTON1 );
+*/
+		iReturn = IDNO;
 
-	fpOutputFile2 = fopen( szOutputFile2, "w" );
-	fpOutputFile3 = fopen( szOutputFile3, "w" );
+		DragQueryFile( hDrop, 0, szFullPathShort, sizeof(szFullPathShort) );
+
+		if( iReturn == IDCANCEL ){
+			return 1;
 		}
 		else if( iReturn == IDYES ){
 			DragAndUrlFileList(szFullPathShort);
@@ -467,7 +479,7 @@ int DragAndFileList( const char *pszFullPathShort )
 
 printf( "[imagefileindexhtmlmaker.c]の[273行目]\n" );
 	ShortFullPath2LongFullPath( pszFullPathShort, szFullPathLong );
-	iReturn = FullPath2FileNameExtension( szFullPathLong, 
+	iReturn = FullPath2FileNameExtension( szFullPathLong,
 										  szBroadFilename );
 		/*
 		 * 出力ファイル名を作成する。
@@ -475,7 +487,9 @@ printf( "[imagefileindexhtmlmaker.c]の[273行目]\n" );
 #if 0
 	GetDesktopFullPath(szDesktopFullPath);
 #endif
-	GetDesktopFullPath( szDesktopFullPath, ((_MAX_PATH)+1) );
+	if( GetParentDirectoryFromFileFullPath( pszFullPathShort, szDesktopFullPath ) != 0 ){
+		return 1;
+	}
 	sprintf( szFileName, "%s\\FileList.txt", szDesktopFullPath );
 
 printf( "%s\n", szFileName );
@@ -564,7 +578,9 @@ int DragAndUrlFileList( const char *pszFullPathShort )
 #if 0
 	GetDesktopFullPath(szDesktopFullPath);
 #endif
-	GetDesktopFullPath( szDesktopFullPath, ((_MAX_PATH)+1) );
+	if( GetParentDirectoryFromFileFullPath( pszFullPathShort, szDesktopFullPath ) != 0 ){
+		return 1;
+	}
 	sprintf( szFileName, "%s\\FileList.txt", szDesktopFullPath );
 
 	ShortFullPath2LongFullPath( pszFullPathShort, szFullPathLong );
@@ -609,7 +625,9 @@ int DragAndUrlIndexHtml( const char *pszFullPathShort )
 #if 0
 	GetDesktopFullPath(szDesktopFullPath);
 #endif
-	GetDesktopFullPath( szDesktopFullPath, ((_MAX_PATH)+1) );
+	if( GetParentDirectoryFromFileFullPath( pszFullPathShort, szDesktopFullPath ) != 0 ){
+		return 1;
+	}
 	sprintf( szInputFile, "%s\\FileList.txt", szDesktopFullPath );
 	sprintf( szOutputFile, "%s\\index.html.txt", szDesktopFullPath );
 	sprintf( szOutputFile2, "%s\\index_outer_frame.html", szDesktopFullPath );
