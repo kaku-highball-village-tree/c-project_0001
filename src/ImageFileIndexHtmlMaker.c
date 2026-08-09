@@ -11,14 +11,83 @@
 
 int ExecuteSpecifiedArgument( HWND hWnd, char const *pszArgument );
 int AfterDragAndDrop( HWND hWnd, HDROP hDrop );
-int DragAndFileList( const char *pszFullPathShort );
-int DragAndUrlFileList( const char *pszFullPathShort );
-int DragAndUrlIndexHtml( const char *pszFullPathShort );
+int DragAndFileList( const char *pszFullPathShort, const char *pszOutputDirectory, const char *pszWriteMode );
+int DragAndUrlFileList( const char *pszFullPathShort, const char *pszOutputDirectory, const char *pszWriteMode );
+int DragAndUrlIndexHtml( const char *pszFullPathShort, const char *pszOutputDirectory );
+int GetParentDirectoryFromFileFullPath( const char *pszFileFullPath, char *pszParentDirectory );
+int IsSameParentDirectoryFileList( char **pszFileFullPath, int iFileCount, char *pszParentDirectory );
+
+
+int GetParentDirectoryFromFileFullPath( const char *pszFileFullPath, char *pszParentDirectory )
+{
+	char	szNormalizedFullPath[_MAX_PATH+1]	 = { 0, };
+	char	szLongFullPath[_MAX_PATH+1]		 = { 0, };
+	char	*pszFileName					 = NULL;
+	DWORD	dwLength						 = 0;
+	DWORD	dwAttributes					 = 0;
+	size_t	uiLength						 = 0;
+
+	if( pszFileFullPath == NULL || pszParentDirectory == NULL ){
+		return 1;
+	}
+
+	dwLength = GetFullPathNameA( pszFileFullPath, (_MAX_PATH+1), szNormalizedFullPath, &pszFileName );
+	if( dwLength == 0 || _MAX_PATH < dwLength || pszFileName == NULL ){
+		return 1;
+	}
+
+	dwAttributes = GetFileAttributesA( szNormalizedFullPath );
+	if( dwAttributes == INVALID_FILE_ATTRIBUTES || (dwAttributes & FILE_ATTRIBUTE_DIRECTORY) ){
+		return 1;
+	}
+
+	dwLength = GetLongPathNameA( szNormalizedFullPath, szLongFullPath, (_MAX_PATH+1) );
+	if( dwLength == 0 || _MAX_PATH < dwLength ){
+		strcpy( szLongFullPath, szNormalizedFullPath );
+	}
+
+	pszFileName = strrchr( szLongFullPath, '\\' );
+	if( pszFileName == NULL ){
+		pszFileName = strrchr( szLongFullPath, '/' );
+	}
+	if( pszFileName == NULL ){
+		return 1;
+	}
+	*pszFileName = '\0';
+
+	uiLength = strlen( szLongFullPath );
+	while( 3 < uiLength && (szLongFullPath[uiLength-1] == '\\' || szLongFullPath[uiLength-1] == '/') ){
+		szLongFullPath[--uiLength] = '\0';
+	}
+	strcpy( pszParentDirectory, szLongFullPath );
+	return 0;
+}
+
+int IsSameParentDirectoryFileList( char **pszFileFullPath, int iFileCount, char *pszParentDirectory )
+{
+	int	i	 = 0;
+	char	szParentDirectory[_MAX_PATH+1]	 = { 0, };
+
+	if( pszFileFullPath == NULL || iFileCount < 1 || pszParentDirectory == NULL ){
+		return 0;
+	}
+	if( GetParentDirectoryFromFileFullPath( pszFileFullPath[0], pszParentDirectory ) != 0 ){
+		return 0;
+	}
+	for( i = 1; i < iFileCount; i++ ){
+		if( GetParentDirectoryFromFileFullPath( pszFileFullPath[i], szParentDirectory ) != 0 ||
+			_stricmp( pszParentDirectory, szParentDirectory ) != 0 ){
+			return 0;
+		}
+	}
+	return 1;
+}
 
 //////////////////////////////////////////////////////////////////////
 //
-// ˆø”‚ğw’è‚µ‚ÄÀs‚µ‚½ê‡
-//   –”‚ÍCƒAƒCƒRƒ“‚Éƒtƒ@ƒCƒ‹‚ğƒhƒ‰ƒbƒO‚µ‚½ê‡
+	char	szOutputDirectory[((_MAX_PATH)+1)]				 = { 0, };
+// å¼•æ•°ã‚’æŒ‡å®šã—ã¦å®Ÿè¡Œã—ãŸå ´åˆ
+//   åˆã¯ï¼Œã‚¢ã‚¤ã‚³ãƒ³ã«ãƒ•ã‚¡ã‚¤ãƒ«ã‚’ãƒ‰ãƒ©ãƒƒã‚°ã—ãŸå ´åˆ
 //
 
 int ExecuteSpecifiedArgument( HWND hWnd, char const *pszArgument )
@@ -28,7 +97,7 @@ int ExecuteSpecifiedArgument( HWND hWnd, char const *pszArgument )
 
 		//////////////////////////////////////////////////////////////
 		//
-		// •W€‚ÌƒGƒfƒBƒ^‚ÅŠJ‚­‚à‚Ì
+		// æ¨™æº–ã®ã‚¨ãƒ‡ã‚£ã‚¿ã§é–‹ãã‚‚ã®
 		//
 	char	**pszFileFullPathLong								 = NULL;
 	char	*pszFileList										 = NULL;
@@ -36,14 +105,14 @@ int ExecuteSpecifiedArgument( HWND hWnd, char const *pszArgument )
 
 		//////////////////////////////////////////////////////////////
 		//
-		// ‚»‚Ì‘¼‚Ì‚à‚Ì
+		// ãã®ä»–ã®ã‚‚ã®
 		//
 	int		i													 = 0;
 	int		iReturn												 = 0;
 
 	//////////////////////////////////////////////////////////////////
 	//
-	// ˆø”‚ğƒ`ƒFƒbƒN‚·‚éB
+	// å¼•æ•°ã‚’ãƒã‚§ãƒƒã‚¯ã™ã‚‹ã€‚
 	//
 
 	if( pszArgument == NULL ){
@@ -56,9 +125,9 @@ int ExecuteSpecifiedArgument( HWND hWnd, char const *pszArgument )
 
 	//////////////////////////////////////////////////////////////////
 	//
-	// ˆø”‚ÉŠÜ‚Ü‚ê‚éƒtƒ@ƒCƒ‹‚Ì”‚ğŒvZ‚·‚éB
+	// å¼•æ•°ã«å«ã¾ã‚Œã‚‹ãƒ•ã‚¡ã‚¤ãƒ«ã®æ•°ã‚’è¨ˆç®—ã™ã‚‹ã€‚
 	//
-	// •”•ª•¶š—ñ‚Ì”‚ğŒvZ‚·‚éi—¼’[“ü‚êjB
+	// éƒ¨åˆ†æ–‡å­—åˆ—ã®æ•°ã‚’è¨ˆç®—ã™ã‚‹ï¼ˆä¸¡ç«¯å…¥ã‚Œï¼‰ã€‚
 	//
 
 #if 0
@@ -66,9 +135,9 @@ int ExecuteSpecifiedArgument( HWND hWnd, char const *pszArgument )
 #endif
 
 	iFileCount = GetPartStringCountBasedOnDelimiterCharacterInFullStringBothEndsIncluded( pszArgument, 0x20 );
-	if( 1 < iFileCount ){ // —¼’[“ü‚ê‚È‚Ì‚ÅC•”•ª•¶š—ñ‚ÍÅ’á‚QŒÂ‚ ‚éB
+	if( 1 < iFileCount ){ // ä¸¡ç«¯å…¥ã‚Œãªã®ã§ï¼Œéƒ¨åˆ†æ–‡å­—åˆ—ã¯æœ€ä½ï¼’å€‹ã‚ã‚‹ã€‚
 		/*
-		 * ‹æØ‚è•¶š‚ª‘¶İ‚·‚é‚Ì‚ÅC‰º‚Åˆ—‚·‚éB
+		 * åŒºåˆ‡ã‚Šæ–‡å­—ãŒå­˜åœ¨ã™ã‚‹ã®ã§ï¼Œä¸‹ã§å‡¦ç†ã™ã‚‹ã€‚
 		 */
 	}
 	else if( iFileCount < 0 ){
@@ -76,7 +145,7 @@ int ExecuteSpecifiedArgument( HWND hWnd, char const *pszArgument )
 	}
 	else{
 			/*
-			 * ‚±‚±‚É—ˆ‚é‚±‚Æ‚Í‚È‚¢‚Í‚¸‚Å‚ ‚éB
+			 * ã“ã“ã«æ¥ã‚‹ã“ã¨ã¯ãªã„ã¯ãšã§ã‚ã‚‹ã€‚
 			 */
 		return -4;
 	}
@@ -84,7 +153,7 @@ int ExecuteSpecifiedArgument( HWND hWnd, char const *pszArgument )
 
 	//////////////////////////////////////////////////////////////////
 	//
-	// ˆø”‚ÉŠÜ‚Ü‚ê‚éƒtƒ@ƒCƒ‹‚Ìˆê——‚ğŠi”[‚·‚é—Ìˆæ‚ğŠm•Û‚·‚éB
+	// å¼•æ•°ã«å«ã¾ã‚Œã‚‹ãƒ•ã‚¡ã‚¤ãƒ«ã®ä¸€è¦§ã‚’æ ¼ç´ã™ã‚‹é ˜åŸŸã‚’ç¢ºä¿ã™ã‚‹ã€‚
 	//
 
 	pszFileFullPathShort = CreateCharArray2D( iFileCount, ((_MAX_PATH)+1) );
@@ -92,9 +161,9 @@ int ExecuteSpecifiedArgument( HWND hWnd, char const *pszArgument )
 
 	//////////////////////////////////////////////////////////////////
 	//
-	// ˆø”‚ÉŠÜ‚Ü‚ê‚éƒtƒ@ƒCƒ‹‚Ìˆê——‚ğì¬‚·‚éB
+	// å¼•æ•°ã«å«ã¾ã‚Œã‚‹ãƒ•ã‚¡ã‚¤ãƒ«ã®ä¸€è¦§ã‚’ä½œæˆã™ã‚‹ã€‚
 	//
-	// •”•ª•¶š—ñ‚ğæ“¾‚·‚éB
+	// éƒ¨åˆ†æ–‡å­—åˆ—ã‚’å–å¾—ã™ã‚‹ã€‚
 	//
 //int DivideFullString2PartStringBasedOnDelimiterCharacter( char const		*pszOriginalString, 
 //														  int const			iOriginalDelimiterCharacter, 
@@ -104,8 +173,13 @@ int ExecuteSpecifiedArgument( HWND hWnd, char const *pszArgument )
 
 	//////////////////////////////////////////////////////////////////
 	//
-	// •”•ª•¶š—ñ‚ğæ“¾‚·‚éB
-	//
+		if( !IsSameParentDirectoryFileList( pszFileFullPathShort, iFileCount, szOutputDirectory ) ){
+			DeleteCharArray2D( pszFileFullPathShort, iFileCount );
+			DeleteCharArray2D( pszFileFullPathLong, iFileCount );
+			return -5;
+		}
+				DragAndUrlFileList( pszFileFullPathShort[i], szOutputDirectory, (i == 0) ? "w" : "a" );
+				DragAndFileList( pszFileFullPathShort[i], szOutputDirectory, (i == 0) ? "w" : "a" );
 
 	iReturn = DivideFullString2PartStringBasedOnDelimiterCharacter( pszArgument, 
 												   0x20,
@@ -144,7 +218,7 @@ int ExecuteSpecifiedArgument( HWND hWnd, char const *pszArgument )
 
 	//////////////////////////////////////////////////////////////////
 	//
-	// ˆø”‚ÉŠÜ‚Ü‚ê‚éƒtƒ@ƒCƒ‹‚Ìˆê——‚ğƒƒ‚’ ‚ÅŠJ‚­B
+	// å¼•æ•°ã«å«ã¾ã‚Œã‚‹ãƒ•ã‚¡ã‚¤ãƒ«ã®ä¸€è¦§ã‚’ãƒ¡ãƒ¢å¸³ã§é–‹ãã€‚
 	//
 
 	pszFileList = CreateCharArray1D( iFileCount * _MAX_PATH );
@@ -161,7 +235,7 @@ int ExecuteSpecifiedArgument( HWND hWnd, char const *pszArgument )
 
 	//////////////////////////////////////////////////////////////////
 	//
-	// ˆø”‚ÉŠÜ‚Ü‚ê‚éƒtƒ@ƒCƒ‹‚Ìˆê——‚ğŠi”[‚·‚é—Ìˆæ‚ğ‰ğ•ú‚·‚éB
+	// å¼•æ•°ã«å«ã¾ã‚Œã‚‹ãƒ•ã‚¡ã‚¤ãƒ«ã®ä¸€è¦§ã‚’æ ¼ç´ã™ã‚‹é ˜åŸŸã‚’è§£æ”¾ã™ã‚‹ã€‚
 	//
 
 	DeleteCharArray2D( pszFileFullPathShort, iFileCount );
@@ -172,7 +246,39 @@ int ExecuteSpecifiedArgument( HWND hWnd, char const *pszArgument )
 
 //////////////////////////////////////////////////////////////////////
 //
-// ƒtƒ@ƒCƒ‹‚ğƒhƒ‰ƒbƒO‚µ‚½ê‡
+	char		**pszDroppedFileFullPath								 = NULL;
+
+	uiFileCount = DragQueryFile( hDrop, 0xFFFFFFFF, NULL, 0 );
+	if( uiFileCount < 1 || DRAGANDDROP_FILE_COUNT_MAX < uiFileCount ){
+		sprintf( szMessage, "Drop between 1 and %d files from one folder.", DRAGANDDROP_FILE_COUNT_MAX );
+		MessageBox( hWnd, szMessage, GetPszApplicationName(), MB_OK | MB_ICONERROR );
+		DragFinish( hDrop );
+		return 1;
+	}
+
+	pszDroppedFileFullPath = CreateCharArray2D( uiFileCount, ((_MAX_PATH)+1) );
+	if( pszDroppedFileFullPath == NULL ){
+		DragFinish( hDrop );
+		return 1;
+	}
+	for( i = 0; i < (int)uiFileCount; i++ ){
+		if( DragQueryFile( hDrop, i, pszDroppedFileFullPath[i], (_MAX_PATH+1) ) == 0 ){
+			DeleteCharArray2D( pszDroppedFileFullPath, uiFileCount );
+			DragFinish( hDrop );
+			return 1;
+		}
+	}
+	if( !IsSameParentDirectoryFileList( pszDroppedFileFullPath, uiFileCount, szDesktopFullPath ) ){
+		MessageBox( hWnd,
+					"Files from different folders, or a non-file item, are included.\nPlease drop files from one folder only.",
+					GetPszApplicationName(),
+					MB_OK | MB_ICONERROR );
+		DeleteCharArray2D( pszDroppedFileFullPath, uiFileCount );
+		DragFinish( hDrop );
+		return 1;
+	}
+	DeleteCharArray2D( pszDroppedFileFullPath, uiFileCount );
+		DragFinish( hDrop );
 //
 
 int AfterDragAndDrop( HWND hWnd, HDROP hDrop )
@@ -196,7 +302,7 @@ int AfterDragAndDrop( HWND hWnd, HDROP hDrop )
 	GetDesktopFullPath( szDesktopFullPath, ((_MAX_PATH)+1) );
 	sprintf( szOutputFile, "%s\\style_index.css", szDesktopFullPath );
 
-printf( "[imagefileindexhtmlmaker.c]‚Ì[199s–Ú]\n" );
+printf( "[imagefileindexhtmlmaker.c]ã®[199è¡Œç›®]\n" );
 printf( "szOutputFile = [%s]\n", szOutputFile );
 	fpOutputFile = fopen( szOutputFile, "w" );
 	if( fpOutputFile == NULL ){
@@ -204,10 +310,10 @@ printf( "szOutputFile = [%s]\n", szOutputFile );
 	}
 
 	fprintf( fpOutputFile, "/* style_index.css */\n" );
-	fprintf( fpOutputFile, "/* Œ©o‚µ‚ÌŠî–{İ’èB–{•¶‚Ì‘ÌÙ‚ÍŠù’è‚Ì‚Ü‚ÜB */\n" );
-	fprintf( fpOutputFile, "/* g—p•¶š‚Í ASCII ‚Æ‘æˆêE‘æ“ñ…€Š¿š‚Ì‚İBŠG•¶šE‹@íˆË‘¶•¶š‚Í•sg—pB */\n" );
+	fprintf( fpOutputFile, "/* è¦‹å‡ºã—ã®åŸºæœ¬è¨­å®šã€‚æœ¬æ–‡ã®ä½“è£ã¯æ—¢å®šã®ã¾ã¾ã€‚ */\n" );
+	fprintf( fpOutputFile, "/* ä½¿ç”¨æ–‡å­—ã¯ ASCII ã¨ç¬¬ä¸€ãƒ»ç¬¬äºŒæ°´æº–æ¼¢å­—ã®ã¿ã€‚çµµæ–‡å­—ãƒ»æ©Ÿç¨®ä¾å­˜æ–‡å­—ã¯ä¸ä½¿ç”¨ã€‚ */\n" );
 	fprintf( fpOutputFile, "\n" );
-	fprintf( fpOutputFile, "/* Œ©o‚µ‚ÌŠî–{İ’èi‰¡ü‚È‚µ”Åj */\n" );
+	fprintf( fpOutputFile, "/* è¦‹å‡ºã—ã®åŸºæœ¬è¨­å®šï¼ˆæ¨ªç·šãªã—ç‰ˆï¼‰ */\n" );
 	fprintf( fpOutputFile, "h1, h2, h3, h4 {\n" );
 	fprintf( fpOutputFile, "  font-family: system-ui, -apple-system, \"Segoe UI\", Meiryo, \"Yu Gothic UI\", sans-serif;\n" );
 	fprintf( fpOutputFile, "  line-height: 1.35;\n" );
@@ -215,24 +321,24 @@ printf( "szOutputFile = [%s]\n", szOutputFile );
 	fprintf( fpOutputFile, "  margin: 1.2em 0 0.6em;\n" );
 	fprintf( fpOutputFile, "}\n" );
 	fprintf( fpOutputFile, "\n" );
-	fprintf( fpOutputFile, "/* H1F¶ü‚Ì‚İB‰¡ü‚â‘Ñ‚Í•t‚¯‚È‚¢ */\n" );
+	fprintf( fpOutputFile, "/* H1ï¼šå·¦ç·šã®ã¿ã€‚æ¨ªç·šã‚„å¸¯ã¯ä»˜ã‘ãªã„ */\n" );
 	fprintf( fpOutputFile, "h1 {\n" );
 	fprintf( fpOutputFile, "  font-size: 2.0rem;\n" );
 	fprintf( fpOutputFile, "  font-weight: 700;\n" );
 	fprintf( fpOutputFile, "  border-left: 0.5rem solid #222;\n" );
 	fprintf( fpOutputFile, "  padding-left: 0.6rem;\n" );
-	fprintf( fpOutputFile, "  background-image: none;          /* ‰¡•ûŒü‚Ì’W‚¢‘Ñ‚ğ–³Œø‰» */\n" );
+	fprintf( fpOutputFile, "  background-image: none;          /* æ¨ªæ–¹å‘ã®æ·¡ã„å¸¯ã‚’ç„¡åŠ¹åŒ– */\n" );
 	fprintf( fpOutputFile, "}\n" );
 	fprintf( fpOutputFile, "\n" );
-	fprintf( fpOutputFile, "/* H2F‰¡ü‚È‚µ */\n" );
+	fprintf( fpOutputFile, "/* H2ï¼šæ¨ªç·šãªã— */\n" );
 	fprintf( fpOutputFile, "h2 {\n" );
 	fprintf( fpOutputFile, "  font-size: 1.6rem;\n" );
 	fprintf( fpOutputFile, "  font-weight: 700;\n" );
-	fprintf( fpOutputFile, "  padding-bottom: 0;               /* ‰ºü‚ğ‚È‚­‚·‚½‚ß—]”’‚à’²® */\n" );
+	fprintf( fpOutputFile, "  padding-bottom: 0;               /* ä¸‹ç·šã‚’ãªãã™ãŸã‚ä½™ç™½ã‚‚èª¿æ•´ */\n" );
 	fprintf( fpOutputFile, "  border-bottom: none;\n" );
 	fprintf( fpOutputFile, "}\n" );
 	fprintf( fpOutputFile, "\n" );
-	fprintf( fpOutputFile, "/* H3F‰¡ü‚È‚µ */\n" );
+	fprintf( fpOutputFile, "/* H3ï¼šæ¨ªç·šãªã— */\n" );
 	fprintf( fpOutputFile, "h3 {\n" );
 	fprintf( fpOutputFile, "  font-size: 1.3rem;\n" );
 	fprintf( fpOutputFile, "  font-weight: 600;\n" );
@@ -240,7 +346,7 @@ printf( "szOutputFile = [%s]\n", szOutputFile );
 	fprintf( fpOutputFile, "  border-bottom: none;\n" );
 	fprintf( fpOutputFile, "}\n" );
 	fprintf( fpOutputFile, "\n" );
-	fprintf( fpOutputFile, "/* H4F”–‚¢‘Ñ{¶üi‰¡ü‚È‚µj */\n" );
+	fprintf( fpOutputFile, "/* H4ï¼šè–„ã„å¸¯ï¼‹å·¦ç·šï¼ˆæ¨ªç·šãªã—ï¼‰ */\n" );
 	fprintf( fpOutputFile, "h4 {\n" );
 	fprintf( fpOutputFile, "  font-size: 1.15rem;\n" );
 	fprintf( fpOutputFile, "  font-weight: 600;\n" );
@@ -249,48 +355,48 @@ printf( "szOutputFile = [%s]\n", szOutputFile );
 	fprintf( fpOutputFile, "  border-left: 0.3rem solid #888;\n" );
 	fprintf( fpOutputFile, "}\n" );
 	fprintf( fpOutputFile, "\n" );
-	fprintf( fpOutputFile, "/* –{•¶—p‚ÌŠî–{İ’è */\n" );
+	fprintf( fpOutputFile, "/* æœ¬æ–‡ç”¨ã®åŸºæœ¬è¨­å®š */\n" );
 	fprintf( fpOutputFile, "p {\n" );
-	fprintf( fpOutputFile, "  margin: 0 0 1em;      /* ’i—‰º‚É—]”’‚ğ•t‚¯‚é */\n" );
-	fprintf( fpOutputFile, "  line-height: 1.8;     /* sŠÔ */\n" );
+	fprintf( fpOutputFile, "  margin: 0 0 1em;      /* æ®µè½ä¸‹ã«ä½™ç™½ã‚’ä»˜ã‘ã‚‹ */\n" );
+	fprintf( fpOutputFile, "  line-height: 1.8;     /* è¡Œé–“ */\n" );
 	fprintf( fpOutputFile, "}\n" );
 	fprintf( fpOutputFile, "\n" );
 	fprintf( fpOutputFile, "ul, ol {\n" );
-	fprintf( fpOutputFile, "  margin: 0 0 1em 1.5em; /* ‰Óğ‘‚«‚É‚à­‚µ—]”’ */\n" );
+	fprintf( fpOutputFile, "  margin: 0 0 1em 1.5em; /* ç®‡æ¡æ›¸ãã«ã‚‚å°‘ã—ä½™ç™½ */\n" );
 	fprintf( fpOutputFile, "}\n" );
 	fclose( fpOutputFile );
 
-printf( "[imagefileindexhtmlmaker.c]‚Ì[261s–Ú]\n" );
+printf( "[imagefileindexhtmlmaker.c]ã®[261è¡Œç›®]\n" );
 		/*
-		 * ƒhƒ‰ƒbƒOƒAƒ“ƒhƒhƒƒbƒv‚³‚ê‚½ƒtƒ@ƒCƒ‹‚Ì”‚ğæ“¾‚·‚éB
+			DragAndUrlFileList( szFullPathShort, szDesktopFullPath, "w" );
+			DragAndFileList( szFullPathShort, szDesktopFullPath, "w" );
+
+				DragAndUrlFileList( szFullPathShort, szDesktopFullPath, (i == 0) ? "w" : "a" );
+				DragAndFileList( szFullPathShort, szDesktopFullPath, (i == 0) ? "w" : "a" );
+	DragAndUrlIndexHtml( szFullPathShort, szDesktopFullPath );
+int DragAndFileList( const char *pszFullPathShort, const char *pszOutputDirectory, const char *pszWriteMode )
 		 */
+	strcpy( szDesktopFullPath, pszOutputDirectory );
+	fp = fopen( szFileName, pszWriteMode );
+	fpOutputFile2 = fopen( szOutputFile2, pszWriteMode );
+	fpOutputFile3 = fopen( szOutputFile3, pszWriteMode );
+int DragAndUrlFileList( const char *pszFullPathShort, const char *pszOutputDirectory, const char *pszWriteMode )
+	strcpy( szDesktopFullPath, pszOutputDirectory );
+	fp = fopen( szFileName, pszWriteMode );
+int DragAndUrlIndexHtml( const char *pszFullPathShort, const char *pszOutputDirectory )
+	strcpy( szDesktopFullPath, pszOutputDirectory );
 
-	uiFileCount = DragQueryFile( hDrop, 0xFFFFFFFF, NULL, 0 );
+	fpOutputFile = fopen( szOutputFile, "w" );
 
-		/*
-		 * ƒhƒ‰ƒbƒOƒAƒ“ƒhƒhƒƒbƒv‚³‚ê‚½ƒtƒ@ƒCƒ‹‚Ì”–ˆ‚Ìˆ—
-		 */
-
-	if( uiFileCount == 1 ){
-/*
-		iReturn = MessageBox( hWnd,
-							  "\"file://\"‚ğ•t‰Á‚µ‚ÄURL‚É‚µ‚Ü‚·‚©",
-							  GetPszApplicationName(),
-							  MB_YESNOCANCEL | MB_ICONQUESTION | MB_DEFBUTTON1 );
-*/
-		iReturn = IDNO;
-
-		DragQueryFile( hDrop, 0, szFullPathShort, sizeof(szFullPathShort) );
-
-		if( iReturn == IDCANCEL ){
-			return 1;
+	fpOutputFile2 = fopen( szOutputFile2, "w" );
+	fpOutputFile3 = fopen( szOutputFile3, "w" );
 		}
 		else if( iReturn == IDYES ){
 			DragAndUrlFileList(szFullPathShort);
 		}
 		else if( iReturn == IDNO ){
 			DragAndFileList(szFullPathShort);
-printf( "[imagefileindexhtmlmaker.c]‚Ì[290s–Ú]\n" );
+printf( "[imagefileindexhtmlmaker.c]ã®[290è¡Œç›®]\n" );
 		}
 		else{
 
@@ -299,7 +405,7 @@ printf( "[imagefileindexhtmlmaker.c]‚Ì[290s–Ú]\n" );
 	else if( uiFileCount <= DRAGANDDROP_FILE_COUNT_MAX ){
 /*
 		iReturn = MessageBox( hWnd,
-							  "\"file://\"‚ğ•t‰Á‚µ‚ÄURL‚É‚µ‚Ü‚·‚©",
+							  "\"file://\"ã‚’ä»˜åŠ ã—ã¦URLã«ã—ã¾ã™ã‹",
 							  GetPszApplicationName(),
 							  MB_YESNOCANCEL | MB_ICONQUESTION | MB_DEFBUTTON2 );
 */
@@ -326,7 +432,7 @@ printf( "[imagefileindexhtmlmaker.c]‚Ì[290s–Ú]\n" );
 	}
 	else{
 		sprintf( szMessage,
-				 "ƒhƒ‰ƒbƒO‚·‚é‚Ì‚Í %dŒÂ‚Ü‚Å‚É‚µ‚Ä‰º‚³‚¢B",
+				 "ãƒ‰ãƒ©ãƒƒã‚°ã™ã‚‹ã®ã¯ %då€‹ã¾ã§ã«ã—ã¦ä¸‹ã•ã„ã€‚",
 				 DRAGANDDROP_FILE_COUNT_MAX );
 		MessageBox( hWnd,
 					szMessage,
@@ -359,12 +465,12 @@ int DragAndFileList( const char *pszFullPathShort )
 	FILE		*fpOutputFile3									 = NULL;
 	char		szOutputFile3[((_MAX_PATH)+1)]					 = { 0, };
 
-printf( "[imagefileindexhtmlmaker.c]‚Ì[273s–Ú]\n" );
+printf( "[imagefileindexhtmlmaker.c]ã®[273è¡Œç›®]\n" );
 	ShortFullPath2LongFullPath( pszFullPathShort, szFullPathLong );
 	iReturn = FullPath2FileNameExtension( szFullPathLong, 
 										  szBroadFilename );
 		/*
-		 * o—Íƒtƒ@ƒCƒ‹–¼‚ğì¬‚·‚éB
+		 * å‡ºåŠ›ãƒ•ã‚¡ã‚¤ãƒ«åã‚’ä½œæˆã™ã‚‹ã€‚
 		 */
 #if 0
 	GetDesktopFullPath(szDesktopFullPath);
@@ -376,7 +482,7 @@ printf( "%s\n", szFileName );
 
 	fp = fopen( szFileName, "a" );
 	if( fp == NULL ){
-printf( "[imagefileindexhtmlmaker.c]‚Ì[284s–Ú]\n" );
+printf( "[imagefileindexhtmlmaker.c]ã®[284è¡Œç›®]\n" );
 		return 1;
 	}
 //
@@ -417,8 +523,8 @@ printf( "%s\n", szFullPathLong );
 
 //
 // <figure>
-//   <img src="./ClipBoardBitmap0022.jpg" alt="‰æ‘œ‚Ìà–¾" width="" height="" border="0">
-//   <figcaption>‰æ‘œ‚Ìà–¾‚ğ‘‚«‚Ü‚·B•K—v‚É‰‚¶‚Ä“K‹X•ÏX‚µ‚Ä‚­‚¾‚³‚¢B</figcaption>
+//   <img src="./ClipBoardBitmap0022.jpg" alt="ç”»åƒã®èª¬æ˜" width="" height="" border="0">
+//   <figcaption>ç”»åƒã®èª¬æ˜ã‚’æ›¸ãã¾ã™ã€‚å¿…è¦ã«å¿œã˜ã¦é©å®œå¤‰æ›´ã—ã¦ãã ã•ã„ã€‚</figcaption>
 // </figure>
 //
 	sprintf( szOutputFile3, "%s\\FileList_caption_frame.txt", szDesktopFullPath );
@@ -431,8 +537,8 @@ printf( "%s\n", szFullPathLong );
 
 
 	fprintf( fpOutputFile3, "<figure>\n" );
-	fprintf( fpOutputFile3, "  <img src=\"./%s\" alt=\"‰æ‘œ‚Ìà–¾\" width=\"\" height=\"\" border=\"0\">\n", szBroadFilename );
-	fprintf( fpOutputFile3, "  <figcaption>‰æ‘œ‚Ìà–¾‚ğ‘‚«‚Ü‚·B•K—v‚É‰‚¶‚Ä“K‹X•ÏX‚µ‚Ä‚­‚¾‚³‚¢B</figcaption>\n" );
+	fprintf( fpOutputFile3, "  <img src=\"./%s\" alt=\"ç”»åƒã®èª¬æ˜\" width=\"\" height=\"\" border=\"0\">\n", szBroadFilename );
+	fprintf( fpOutputFile3, "  <figcaption>ç”»åƒã®èª¬æ˜ã‚’æ›¸ãã¾ã™ã€‚å¿…è¦ã«å¿œã˜ã¦é©å®œå¤‰æ›´ã—ã¦ãã ã•ã„ã€‚</figcaption>\n" );
 	fprintf( fpOutputFile3, "</figure>\n" );
 
 	fclose( fpOutputFile3 );
@@ -453,7 +559,7 @@ int DragAndUrlFileList( const char *pszFullPathShort )
 	char	szFullPathLong[((_MAX_PATH)+1)]				 = { 0, };
 
 		/*
-		 * o—Íƒtƒ@ƒCƒ‹–¼‚ğì¬‚·‚éB
+		 * å‡ºåŠ›ãƒ•ã‚¡ã‚¤ãƒ«åã‚’ä½œæˆã™ã‚‹ã€‚
 		 */
 #if 0
 	GetDesktopFullPath(szDesktopFullPath);
@@ -498,7 +604,7 @@ int DragAndUrlIndexHtml( const char *pszFullPathShort )
 	size_t		uiReadSize									 = 0;
 
 		/*
-		 * o—Íƒtƒ@ƒCƒ‹–¼‚ğì¬‚·‚éB
+		 * å‡ºåŠ›ãƒ•ã‚¡ã‚¤ãƒ«åã‚’ä½œæˆã™ã‚‹ã€‚
 		 */
 #if 0
 	GetDesktopFullPath(szDesktopFullPath);
@@ -524,7 +630,7 @@ int DragAndUrlIndexHtml( const char *pszFullPathShort )
 		iTextFileSize = iReturn;
 	}
 	else{
-		// ‚±‚±‚É—ˆ‚é‚±‚Æ‚Í‚È‚¢‚Í‚¸‚Å‚ ‚éB
+		// ã“ã“ã«æ¥ã‚‹ã“ã¨ã¯ãªã„ã¯ãšã§ã‚ã‚‹ã€‚
 		return -1;
 	}
 
@@ -539,11 +645,11 @@ int DragAndUrlIndexHtml( const char *pszFullPathShort )
 	}
 
 		/*
-		 * ˆê”­‚Å“Ç‚İ‚Ş
+		 * ä¸€ç™ºã§èª­ã¿è¾¼ã‚€
 		 */
 	uiReadSize = fread( pszFileListContents, 1, iTextFileSize, fpInputFile );
 		/*
-		 * ”O‚Ì‚½‚ßI’[‚ğ•t‚¯‚é
+		 * å¿µã®ãŸã‚çµ‚ç«¯ã‚’ä»˜ã‘ã‚‹
 		 */
 	pszFileListContents[uiReadSize] = '\0';
 	fclose( fpInputFile );
@@ -586,9 +692,9 @@ int DragAndUrlIndexHtml( const char *pszFullPathShort )
 	fprintf( fpOutputFile, "Hello, world!!\n" );
 	fprintf( fpOutputFile, "</p>\n" );
 	fprintf( fpOutputFile, "\n" );
-	fprintf( fpOutputFile, "<!-- ‚±‚±‚©‚ç -->\n" );
+	fprintf( fpOutputFile, "<!-- ã“ã“ã‹ã‚‰ -->\n" );
 	fprintf( fpOutputFile, "%s\n", pszFileListContents );
-	fprintf( fpOutputFile, "<!-- ‚±‚±‚Ü‚Å -->\n" );
+	fprintf( fpOutputFile, "<!-- ã“ã“ã¾ã§ -->\n" );
 	fprintf( fpOutputFile, "\n" );
 	fprintf( fpOutputFile, "\n" );
 	fprintf( fpOutputFile, "</body>\n" );
@@ -609,7 +715,7 @@ int DragAndUrlIndexHtml( const char *pszFullPathShort )
 	fprintf( fpOutputFile2, "  <title>outer frame</title>\n" );
 	fprintf( fpOutputFile2, "  <link rel=\"stylesheet\" href=\"style_index.css\">\n" );
 	fprintf( fpOutputFile2, "  <style>\n" );
-	fprintf( fpOutputFile2, "    /* ‰æ‘œ‚ğŒ©•ª‚¯‚â‚·‚­‚·‚éŠO˜gi‚±‚Ìƒy[ƒWê—pj */\n" );
+	fprintf( fpOutputFile2, "    /* ç”»åƒã‚’è¦‹åˆ†ã‘ã‚„ã™ãã™ã‚‹å¤–æ ï¼ˆã“ã®ãƒšãƒ¼ã‚¸å°‚ç”¨ï¼‰ */\n" );
 	fprintf( fpOutputFile2, "    img {\n" );
 	fprintf( fpOutputFile2, "      border: 2px solid #444;\n" );
 	fprintf( fpOutputFile2, "      padding: 4px;\n" );
@@ -628,11 +734,11 @@ int DragAndUrlIndexHtml( const char *pszFullPathShort )
 	fprintf( fpOutputFile2, "<h3>Hello, world!!</h3>\n" );
 	fprintf( fpOutputFile2, "<h4>Hello, world!!</h4>\n" );
 	fprintf( fpOutputFile2, "\n" );
-	fprintf( fpOutputFile2, "<p>‚±‚Ìƒy[ƒW‚ÍA‰æ‘œ‚ÉŠO˜g‚Ì‚İ‚ğ•t‚¯‚½—á‚Å‚·B</p>\n" );
+	fprintf( fpOutputFile2, "<p>ã“ã®ãƒšãƒ¼ã‚¸ã¯ã€ç”»åƒã«å¤–æ ã®ã¿ã‚’ä»˜ã‘ãŸä¾‹ã§ã™ã€‚</p>\n" );
 	fprintf( fpOutputFile2, "\n" );
-	fprintf( fpOutputFile2, "<!-- ‚±‚±‚©‚ç -->\n" );
+	fprintf( fpOutputFile2, "<!-- ã“ã“ã‹ã‚‰ -->\n" );
 	fprintf( fpOutputFile2, "%s\n", pszFileListContents );
-	fprintf( fpOutputFile2, "<!-- ‚±‚±‚Ü‚Å -->\n" );
+	fprintf( fpOutputFile2, "<!-- ã“ã“ã¾ã§ -->\n" );
 	fprintf( fpOutputFile2, "\n" );
 	fprintf( fpOutputFile2, "</body>\n" );
 	fprintf( fpOutputFile2, "</html>\n" );
@@ -652,7 +758,7 @@ int DragAndUrlIndexHtml( const char *pszFullPathShort )
 	fprintf( fpOutputFile3, "  <title>caption + frame</title>\n" );
 	fprintf( fpOutputFile3, "  <link rel=\"stylesheet\" href=\"style_index.css\">\n" );
 	fprintf( fpOutputFile3, "  <style>\n" );
-	fprintf( fpOutputFile3, "    /* ‰æ‘œ{ƒLƒƒƒvƒVƒ‡ƒ“—p‚ÌÅ¬ƒXƒ^ƒCƒ‹i‚±‚Ìƒy[ƒWê—pj */\n" );
+	fprintf( fpOutputFile3, "    /* ç”»åƒï¼‹ã‚­ãƒ£ãƒ—ã‚·ãƒ§ãƒ³ç”¨ã®æœ€å°ã‚¹ã‚¿ã‚¤ãƒ«ï¼ˆã“ã®ãƒšãƒ¼ã‚¸å°‚ç”¨ï¼‰ */\n" );
 	fprintf( fpOutputFile3, "    figure {\n" );
 	fprintf( fpOutputFile3, "      display: inline-block;\n" );
 	fprintf( fpOutputFile3, "      text-align: center;\n" );
@@ -680,13 +786,13 @@ int DragAndUrlIndexHtml( const char *pszFullPathShort )
 	fprintf( fpOutputFile3, "<h3>Hello, world!!</h3>\n" );
 	fprintf( fpOutputFile3, "<h4>Hello, world!!</h4>\n" );
 	fprintf( fpOutputFile3, "\n" );
-	fprintf( fpOutputFile3, "<p>‚±‚Ìƒy[ƒW‚ÍA‰æ‘œ‚ÉŠO˜g‚ÆƒLƒƒƒvƒVƒ‡ƒ“‚ğ•t‚¯‚½—á‚Å‚·B</p>\n" );
+	fprintf( fpOutputFile3, "<p>ã“ã®ãƒšãƒ¼ã‚¸ã¯ã€ç”»åƒã«å¤–æ ã¨ã‚­ãƒ£ãƒ—ã‚·ãƒ§ãƒ³ã‚’ä»˜ã‘ãŸä¾‹ã§ã™ã€‚</p>\n" );
 	fprintf( fpOutputFile3, "\n" );
 	fprintf( fpOutputFile3, "<figure>\n" );
-	fprintf( fpOutputFile3, "<!-- ‚±‚±‚©‚ç -->\n" );
+	fprintf( fpOutputFile3, "<!-- ã“ã“ã‹ã‚‰ -->\n" );
 	fprintf( fpOutputFile3, "%s\n", pszFileListContents );
-	fprintf( fpOutputFile3, "<!-- ‚±‚±‚Ü‚Å -->\n" );
-	fprintf( fpOutputFile3, "  <figcaption>‰æ‘œ‚Ìà–¾‚ğ‘‚«‚Ü‚·B•K—v‚É‰‚¶‚Ä“K‹X•ÏX‚µ‚Ä‚­‚¾‚³‚¢B</figcaption>\n" );
+	fprintf( fpOutputFile3, "<!-- ã“ã“ã¾ã§ -->\n" );
+	fprintf( fpOutputFile3, "  <figcaption>ç”»åƒã®èª¬æ˜ã‚’æ›¸ãã¾ã™ã€‚å¿…è¦ã«å¿œã˜ã¦é©å®œå¤‰æ›´ã—ã¦ãã ã•ã„ã€‚</figcaption>\n" );
 	fprintf( fpOutputFile3, "</figure>\n" );
 	fprintf( fpOutputFile3, "\n" );
 	fprintf( fpOutputFile3, "</body>\n" );
