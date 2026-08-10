@@ -15,7 +15,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-char			*g_pszAppName = "ImageFileIndexHtmlMaker ` 摜index.html쐬 Ver1.00";
+// #include <limits.h>		// INT_MAXを使用する場合に必要となる。
 // #include <float.h>		// DBL_MAX, DBL_MINを使用する場合に必要となる。
 // #include <math.h>		// HUGE_VALを使用する場合に必要となる。
 #include "WindowLayoutOperation.h"
