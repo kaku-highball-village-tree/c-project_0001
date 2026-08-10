@@ -15,15 +15,15 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-// #include <limits.h>		// INT_MAX���g�p����ꍇ�ɕK�v�ƂȂ�B
-// #include <float.h>		// DBL_MAX, DBL_MIN���g�p����ꍇ�ɕK�v�ƂȂ�B
-// #include <math.h>		// HUGE_VAL���g�p����ꍇ�ɕK�v�ƂȂ�B
+char			*g_pszAppName = "ImageFileIndexHtmlMaker ` 摜index.html쐬 Ver1.00";
+// #include <float.h>		// DBL_MAX, DBL_MINを使用する場合に必要となる。
+// #include <math.h>		// HUGE_VALを使用する場合に必要となる。
 #include "WindowLayoutOperation.h"
 #include "ImageFileIndexHtmlMakerMain.h"
 
 /////////////////////////////////////////////////////////////////////
 //
-// �v���v���Z�b�T
+// プリプロセッサ
 //
 /////////////////////////////////////////////////////////////////////
 
@@ -31,11 +31,11 @@
 
 /////////////////////////////////////////////////////////////////////
 //
-// �O���[�o���ϐ�
+// グローバル変数
 //
 /////////////////////////////////////////////////////////////////////
 
-char			*g_pszAppName = "FileListMaker �` �t�@�C���ꗗ�쐬 Ver1.00";
+char			*g_pszAppName = "FileListMaker ～ ファイル一覧作成 Ver1.00";
 
 char*	GetPszApplicationName(void)
 {
@@ -89,7 +89,7 @@ HANDLE GetHMutex(void)
 
 	/////////////////////////////////////////////////////////////////
 	//
-	// �N���C�A���g�̈�̃X�^�e�B�b�N�e�L�X�g�֘A
+	// クライアント領域のスタティックテキスト関連
 	//
 
 HWND			g_hStaticMain;
@@ -116,11 +116,11 @@ int GetStaticMainMargin(void)
 	return g_iStaticMainMargin;
 }
 
-char const		*pszUsage = "�t�@�C���������Ƀh���b�O���h���b�v���ĉ������B\n";
+char const		*pszUsage = "ファイルをここにドラッグ＆ドロップして下さい。\n";
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 //
-// �G���g���|�C���g
+// エントリポイント
 //
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -162,7 +162,7 @@ int main(void)
 #endif
 	//////////////////////////////////////////////////////////////////////
 	//
-	// WinMain�֐��̃��[�J���ϐ�
+	// WinMain関数のローカル変数
 	//
 
 	HWND				hWnd													 = NULL;
@@ -180,7 +180,7 @@ int main(void)
 	LPSTR*				pszArgv													 = NULL;
 #else
 	/*
-	 * �G���g���|�C���g���uint main(void)�v�̏ꍇ�C�������Ȃ��B
+	 * エントリポイントが「int main(void)」の場合，何もしない。
 	 */
 #endif
 
@@ -195,7 +195,7 @@ int main(void)
 	//////////////////////////////////////////////////////////////////////
 	//////////////////////////////////////////////////////////////////////
 	//
-	// �R�}���h���C����iArgc, pszArgy�ɐݒ肷��B
+	// コマンドラインをiArgc, pszArgyに設定する。
 	//
 	//////////////////////////////////////////////////////////////////////
 	//////////////////////////////////////////////////////////////////////
@@ -204,19 +204,19 @@ int main(void)
 #if defined(ENTRY_POINT_IS_WINMAIN)
 
 		/*
-		 * Unicode���C�h�����œn���ꂽ�R�}���h���C�����������͂��C
-		 * Unicode���C�h���������̃��X�g�ipszArgvWide�j�ƈ����̐��iiArgc�j���擾����B
+		 * Unicodeワイド文字で渡されたコマンドライン文字列を解析し，
+		 * Unicodeワイド文字引数のリスト（pszArgvWide）と引数の数（iArgc）を取得する。
 		 */
 	pszArgvWide = CommandLineToArgvW( GetCommandLineW(), &iArgc );
 	if( pszArgvWide == NULL ){
 			/*
-			 * �R�}���h���C���̎擾�Ɏ��s�����ꍇ
+			 * コマンドラインの取得に失敗した場合
 			 */
 
 			/*
-			 * ���b�Z�[�W���[�v�ɓ���O�ł��邽�߁C0��Ԃ��B
+			 * メッセージループに入る前であるため，0を返す。
 			 *
-			 * 1. �u�֐������b�Z�[�W���[�v�ɓ���O�ɏI������ꍇ�́C0��Ԃ��Ă��������B�v
+			 * 1. 「関数がメッセージループに入る前に終了する場合は，0を返してください。」
 			 */
 		return 0;
 	}
@@ -224,68 +224,68 @@ int main(void)
 	pszArgv = HeapAlloc( GetProcessHeap(), HEAP_ZERO_MEMORY, iArgc * sizeof(char*) );
 	if( pszArgv == NULL ){
 			/*
-			 * �q�[�v����̃������u���b�N�̊����ĂɎ��s�����ꍇ
+			 * ヒープからのメモリブロックの割当てに失敗した場合
 			 */
 
 			/*
-			 * ���b�Z�[�W���[�v�ɓ���O�ł��邽�߁C0��Ԃ��B
+			 * メッセージループに入る前であるため，0を返す。
 			 *
-			 * 1. �u�֐������b�Z�[�W���[�v�ɓ���O�ɏI������ꍇ�́C0��Ԃ��Ă��������B�v
+			 * 1. 「関数がメッセージループに入る前に終了する場合は，0を返してください。」
 			 */
 		return 0;
 	}
 
 	for( i = 0; i < iArgc; i++ ){
 			/*
-			 * �e�v�f�ɕK�v�ȃo�b�t�@�T�C�Y���v�Z����B
+			 * 各要素に必要なバッファサイズを計算する。
 			 */
 		iBufferSize = WideCharToMultiByte( CP_ACP, 0, pszArgvWide[i], -1, NULL, 0, NULL, NULL );
 		if( iBufferSize < 2 ){
 			for( j = 0; j < i; j++ ){
 					/*
-					 * �q�[�v���犄�蓖�Ă��������u���b�N���������B
+					 * ヒープから割り当てたメモリブロックを解放する。
 					 */
 				HeapFree( GetProcessHeap(), 0, pszArgv[i] );
 			}
 
 				/*
-				 * �q�[�v���犄�蓖�Ă��������u���b�N���������B
+				 * ヒープから割り当てたメモリブロックを解放する。
 				 */
 			HeapFree( GetProcessHeap(), 0, pszArgv );
 				/*
-				 * ���b�Z�[�W���[�v�ɓ���O�ł��邽�߁C0��Ԃ��B
+				 * メッセージループに入る前であるため，0を返す。
 				 *
-				 * 1. �u�֐������b�Z�[�W���[�v�ɓ���O�ɏI������ꍇ�́C0��Ԃ��Ă��������B�v
+				 * 1. 「関数がメッセージループに入る前に終了する場合は，0を返してください。」
 				 */
 			return 0;
 		}
 
 			/*
-			 * �e�v�f�̗̈���m�ۂ���B
+			 * 各要素の領域を確保する。
 			 */
 		pszArgv[i] = HeapAlloc( GetProcessHeap(), HEAP_ZERO_MEMORY, iBufferSize );
 		if( pszArgv[i] == NULL ){
 			for( j = 0; j < i; j++ ){
 					/*
-					 * �q�[�v���犄�蓖�Ă��������u���b�N���������B
+					 * ヒープから割り当てたメモリブロックを解放する。
 					 */
 				HeapFree( GetProcessHeap(), 0, pszArgv[j] );
 			}
 
 				/*
-				 * �q�[�v���犄�蓖�Ă��������u���b�N���������B
+				 * ヒープから割り当てたメモリブロックを解放する。
 				 */
 			HeapFree( GetProcessHeap(), 0, pszArgv );
 				/*
-				 * ���b�Z�[�W���[�v�ɓ���O�ł��邽�߁C0��Ԃ��B
+				 * メッセージループに入る前であるため，0を返す。
 				 *
-				 * 1. �u�֐������b�Z�[�W���[�v�ɓ���O�ɏI������ꍇ�́C0��Ԃ��Ă��������B�v
+				 * 1. 「関数がメッセージループに入る前に終了する場合は，0を返してください。」
 				 */
 			return 0;
 		}
 
 			/*
-			 * �e�v�f���ɁCUNICODE�������ANSI�R�[�h�ɕϊ����ăR�s�[����B
+			 * 各要素毎に，UNICODE文字列をANSIコードに変換してコピーする。
 			 */
 		iReturn = WideCharToMultiByte( CP_ACP, 0, pszArgvWide[i], -1, pszArgv[i], iBufferSize, NULL, NULL );
 		if( iReturn == 0 ){
@@ -301,8 +301,8 @@ int main(void)
 						   NULL );
 			if( strlen( lptstrErrorMessageString ) < 1024 ){
 				sprintf( szMessage, 
-						 "�G���[�R�[�h�F%d\n"
-						 "�G���[���b�Z�[�W�F%s\n", 
+						 "エラーコード：%d\n"
+						 "エラーメッセージ：%s\n", 
 						 GetLastError(), 
 						 lptstrErrorMessageString );
 				MessageBox( GetFocus(), 
@@ -320,19 +320,19 @@ int main(void)
 
 			for( j = 0; j < i; j++ ){
 					/*
-					 * �q�[�v���犄�蓖�Ă��������u���b�N���������B
+					 * ヒープから割り当てたメモリブロックを解放する。
 					 */
 				HeapFree( GetProcessHeap(), 0, pszArgv[j] );
 			}
 
 				/*
-				 * �q�[�v���犄�蓖�Ă��������u���b�N���������B
+				 * ヒープから割り当てたメモリブロックを解放する。
 				 */
 			HeapFree( GetProcessHeap(), 0, pszArgv );
 				/*
-				 * ���b�Z�[�W���[�v�ɓ���O�ł��邽�߁C0��Ԃ��B
+				 * メッセージループに入る前であるため，0を返す。
 				 *
-				 * 1. �u�֐������b�Z�[�W���[�v�ɓ���O�ɏI������ꍇ�́C0��Ԃ��Ă��������B�v
+				 * 1. 「関数がメッセージループに入る前に終了する場合は，0を返してください。」
 				 */
 			return 0;
 		}
@@ -351,13 +351,13 @@ int main(void)
 	pszArgv = HeapAlloc( GetProcessHeap(), HEAP_ZERO_MEMORY, iArgc * sizeof(char*) );
 	if( pszArgv == NULL ){
 			/*
-			 * �q�[�v����̃������u���b�N�̊����ĂɎ��s�����ꍇ
+			 * ヒープからのメモリブロックの割当てに失敗した場合
 			 */
 
 			/*
-			 * ���b�Z�[�W���[�v�ɓ���O�ł��邽�߁C0��Ԃ��B
+			 * メッセージループに入る前であるため，0を返す。
 			 *
-			 * 1. �u�֐������b�Z�[�W���[�v�ɓ���O�ɏI������ꍇ�́C0��Ԃ��Ă��������B�v
+			 * 1. 「関数がメッセージループに入る前に終了する場合は，0を返してください。」
 			 */
 		return 0;
 	}
@@ -367,13 +367,13 @@ int main(void)
 		if( pszArgv[i] == NULL ){
 			for( j = 0; j < i; j++ ){
 					/*
-					 * �q�[�v���犄�蓖�Ă��������u���b�N���������B
+					 * ヒープから割り当てたメモリブロックを解放する。
 					 */
 				HeapFree( GetProcessHeap(), 0, pszArgv[j] );
 			}
 
 				/*
-				 * �q�[�v���犄�蓖�Ă��������u���b�N���������B
+				 * ヒープから割り当てたメモリブロックを解放する。
 				 */
 			HeapFree( GetProcessHeap(), 0, pszArgv );
 			return 0;
@@ -386,7 +386,7 @@ int main(void)
 
 #else
 	/*
-	 * �G���g���|�C���g���uint main(void)�v�̏ꍇ�C�������Ȃ��B
+	 * エントリポイントが「int main(void)」の場合，何もしない。
 	 */
 #endif
 
@@ -401,28 +401,28 @@ int main(void)
 #if 1
 	//////////////////////////////////////////////////////////////////////
 	//
-	// ��d�N�����ꂽ�ꍇ�C���b�Z�[�W��\�����C���̃v���O�������N�������Ȃ��B
+	// 二重起動された場合，メッセージを表示し，このプログラムを起動させない。
 	//
 		/*
 		 * 
 		 */
 	if( 0 == SelectApplicationDuplicateStartingMessageBox( NULL, GetPszClassName(), GetPszApplicationName(), NULL ) ){
-		// ���̂܂܋N������B
+		// そのまま起動する。
 	}
 	else{
 			/*
-			 * ��d�N�������Ȃ����߁C���̃v���O�������N�������C�I������B
+			 * 二重起動させないため，このプログラムを起動せず，終了する。
 			 */
 		return 0;
 	}
 #elif
 //
 //		/*
-//		 * ��d�N�����ꂽ�ꍇ�C
+//		 * 二重起動された場合，
 //		 */
 //	if( ForbidDoubleRunning( GetPszClassName(), GetPszApplicationName(), 0 ) ){
 //			/*
-//			 * ��d�N�����ꂽ�E�B���h�E�����B
+//			 * 二重起動されたウィンドウを閉じる。
 //			 */
 //		return FALSE;
 //	}
@@ -430,7 +430,7 @@ int main(void)
 #endif
 
 		/*
-		 * �v���Z�X�̃n���h����ۑ�����B
+		 * プロセスのハンドルを保存する。
 		 */
 	SetHInstance( hInstance );
 
@@ -439,7 +439,7 @@ int main(void)
 	objWndClassEx.lpszClassName = GetPszClassName();
 	objWndClassEx.lpfnWndProc = WindowProc;
 		/*
-		 * �_�u���N���b�N��F������E�B���h�E�ɂ���B
+		 * ダブルクリックを認識するウィンドウにする。
 		 */
 	objWndClassEx.style = CS_DBLCLKS;
 
@@ -471,15 +471,15 @@ int main(void)
 						 GetHInstance(),
 						 NULL );
 		/*
-		 * ���C���E�B���h�E�̃n���h����ݒ肷��B
+		 * メインウィンドウのハンドルを設定する。
 		 */
 	SetHWnd( hWnd );
 
 	//////////////////////////////////////////////////////////////////
 	//
-	// �������`�F�b�N����B
+	// 引数をチェックする。
 	//
-	// ���̃v���O�����̎��s�t�@�C���Ƀt�@�C�����h���b�O���ꂽ�ꍇ�C
+	// このプログラムの実行ファイルにファイルがドラッグされた場合，
 	//
 #if defined(ENTRY_POINT_IS_WINMAIN)
 	if( 0 < strlen(lpCmdLine) ){
@@ -495,16 +495,16 @@ int main(void)
 	 */
 #elif defined(ENTRY_POINT_IS_MAIN_ARGUMENT3) || defined(ENTRY_POINT_IS_MAIN_ARGUMENT2) && !defined(ENTRY_POINT_IS_WINMAIN)
 	if( 0 < strlen(pszArgv) ){
-printf( "[imagefileindexhtmlmakermain.c]��[513�s��]\n" );
+printf( "[imagefileindexhtmlmakermain.c]の[513行目]\n" );
 		ExecuteSpecifiedArgument( hWnd, pszArgv );
-printf( "[imagefileindexhtmlmakermain.c]��[514�s��]\n" );
+printf( "[imagefileindexhtmlmakermain.c]の[514行目]\n" );
 		return 0;
 	}
 
 
 #else
 	/*
-	 * �G���g���|�C���g���uint main(void)�v�̏ꍇ�C�������Ȃ��B
+	 * エントリポイントが「int main(void)」の場合，何もしない。
 	 */
 #endif
 
@@ -512,34 +512,34 @@ printf( "[imagefileindexhtmlmakermain.c]��[514�s��]\n" );
 	//////////////////////////////////////////////////////////////////
 
 		/*
-		 * �E�B���h�E��3�����̑傫���Ńf�X�N�g�b�v�̒�����
-		 * �\�������`�l���v�Z����B
+		 * ウィンドウを3分割の大きさでデスクトップの中央に
+		 * 表示する矩形値を計算する。
 		 */
 #if 0
 //	rectWnd = GetGoldenSectionWindowRectDesktopCenterEx2( 3, 4 );
 #endif
 				/*
-				 * �N�������G�f�B�^�̂���܂ɂȂ�Ȃ��悤�ɁC�v���O�����{�̂��ړ�����B
+				 * 起動したエディタのじゃまにならないように，プログラム本体を移動する。
 				 *
-				 * �E�B���h�E�̈ʒu�́C�f�X�N�g�b�v�̉E�����ƂȂ�悤�ɁC
-				 * �E�B���h�E�̃T�C�Y�́C�f�X�N�g�b�v�̉� 4�����E�c 4��������Ƃ��āC
-				 * ���������ɂ��C�E�C���h�E�̋�`���v�Z����B
+				 * ウィンドウの位置は，デスクトップの右下隅となるように，
+				 * ウィンドウのサイズは，デスクトップの横 4分割・縦 4分割を基準として，
+				 * 黄金分割により，ウインドウの矩形を計算する。
 				 */
 	rectWnd = GetWindowRectDesktopLowerRightPositionAndProportionOfDesktopToWindowHeightSizeWidthSizeBasedGoldenSectionWindowRect( 3, 4, FALSE );
 
-printf( "[imagefileindexhtmlmakermain.c]��[525�s��]\n" );
+printf( "[imagefileindexhtmlmakermain.c]の[525行目]\n" );
 		/*
-		 * ��A�N�e�B�u�̏�Ԃł��őO�ʂɃE�B���h�E��\������B
+		 * 非アクティブの状態でも最前面にウィンドウを表示する。
 		 *     (rect.left, rect.top)
 		 *     (    0    ,    0    )
-		 *           ��
+		 *           ↓
 		 *            +---------------------------+
 		 *            |                           |
 		 *            |          RECT             |
-		 *            |          ��`             |
+		 *            |          矩形             |
 		 *            |                           |
 		 *            +---------------------------+
-		 *                                        ��
+		 *                                        ↑
 		 *                             (rect.right, rect.bottom)
 		 *            <===========================>
 		 *             rectWnd.right - rectWnd.left
@@ -579,21 +579,21 @@ LRESULT CALLBACK WindowProc( HWND   	hWnd,
 	switch(uiMessage){
 		case WM_CREATE:
 				/*
-				 * �h���b�O�A���h�h���b�v��������B
-				 * �i�����Ȃ��ꍇ�CFALSE�j
+				 * ドラッグアンドドロップを許可する。
+				 * （許可しない場合，FALSE）
 				 */
 			DragAcceptFiles( hWnd, TRUE );
 
 			//////////////////////////////////////////////////////////
 			//
-			// �N���C�A���g�̈�̃X�^�e�B�b�N�e�L�X�g
+			// クライアント領域のスタティックテキスト
 			//
 			{
 				RECT	rectCliant;
 				HWND	hStaticMain;
 
 					/*
-					 * �N���C�A���g�̈�̋�`���擾����B
+					 * クライアント領域の矩形を取得する。
 					 */
 				GetClientRect( hWnd, &rectCliant );
 				SetStaticMainMargin( 10 );
@@ -622,7 +622,7 @@ LRESULT CALLBACK WindowProc( HWND   	hWnd,
 			RECT	rectCliant;
 
 				/*
-				 * �N���C�A���g�̈�̋�`���擾����B
+				 * クライアント領域の矩形を取得する。
 				 */
 			GetClientRect( hWnd, &rectCliant );
 
@@ -640,9 +640,9 @@ LRESULT CALLBACK WindowProc( HWND   	hWnd,
 		case WM_DROPFILES:
 
 				/*
-				 * �h���b�O�A���h�h���b�v�̌�̏���
+				 * ドラッグアンドドロップの後の処理
 				 *
-				 * ���Ȃ݂ɁChWnd�́C�ʂɂ���Ȃ��B
+				 * ちなみに，hWndは，別にいらない。
 				 */
 			iReturn = AfterDragAndDrop( hWnd, (HDROP)wParam );
 			break;
