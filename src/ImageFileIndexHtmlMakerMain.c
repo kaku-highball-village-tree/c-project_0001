@@ -35,7 +35,7 @@
 //
 /////////////////////////////////////////////////////////////////////
 
-char			*g_pszAppName = "FileListMaker ～ ファイル一覧作成 Ver1.00";
+char			*g_pszAppName = "ImageFileIndexHtmlMaker ～ index_html作成 Ver1.00";
 
 char*	GetPszApplicationName(void)
 {
